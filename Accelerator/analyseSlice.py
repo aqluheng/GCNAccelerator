@@ -53,7 +53,7 @@ def splitSliceForPEs(inputSlice, PEnum=4):
         return partitionList
 
     # partitionList = uniformPartition()  # 这里是baseline
-    partitionList = specificPartition() # 优化一: 按任务量分配
+    partitionList = specificPartition()  # 优化一: 按任务量分配
 
     splitedList = []
     for i in range(PEnum):
@@ -80,9 +80,15 @@ def processingPairs(pairList, PEnum=4):
             canProcess[i] = 1
     return canProcess
 
+def processingPairsWithClone(pairList, PEnum=4):
+    canProcess = np.zeros(PEnum).astype("int")
+    canProcess[:] = 1
+    return canProcess
+
+
 def getNewReg(pairList, lastReg):
     newReg = lastReg.copy()
-    readLineIdx = 100001 # 100001 是一个不会访问到的数值
+    readLineIdx = 100001  # 100001 是一个不会访问到的数值
     for i, pair in enumerate(pairList):
         if pair[1] != -1 and pair[1] != lastReg[i]:
             readLineIdx = min(readLineIdx, pair[1])
@@ -90,6 +96,7 @@ def getNewReg(pairList, lastReg):
         if pair[1] == readLineIdx:
             newReg[i] = readLineIdx
     return newReg
+
 
 def processingPairsWithRegFile(pairList, Breg, PEnum=4):
     canProcess = np.zeros(PEnum).astype("int")
@@ -99,6 +106,21 @@ def processingPairsWithRegFile(pairList, Breg, PEnum=4):
     return canProcess
 
 
+def processingPairsWithOutput(pairList, PEnum=4):
+    canProcess = np.zeros(PEnum).astype("int")
+    bankUsed = np.zeros(PEnum).astype("int")
+    for i, pair in enumerate(pairList):
+        if pair[0] == -1:
+            continue
+        if bankUsed[int(pair[0] / 2048 * PEnum)] == 0:
+            canProcess[i] = 1
+            bankUsed[int(pair[0] / 2048 * PEnum)] = 1
+    return canProcess
+
+def processingPairsIgnoreOBank(pairList, PEnum=4):
+    canProcess = np.zeros(PEnum).astype("int")
+    canProcess[:] = 1
+    return canProcess
 
 
 # 添加B寄存器,只考虑输出矩阵的板块冲突,计算cycle
@@ -125,14 +147,18 @@ def computeCycle(parallelSlice):
         cycle += 1
         # 查看哪几个需要读取B的寄存器,并向B发送请求
 
-        
-        # canProcess = processingPairs(currentPairs)  # 无寄存器状态
+        # canProcessB = processingPairs(currentPairs)  # 无寄存器状态
+        canProcessB = processingPairsWithClone(currentPairs)  # B四拷贝
 
-        Breg = getNewReg(currentPairs, lastReg) # B有寄存器 语句1
-        lastReg = Breg                          # B有寄存器 语句2
-        canProcess = processingPairsWithRegFile(currentPairs, Breg) # B有寄存器 语句3
-        
-        
+        # Breg = getNewReg(currentPairs, lastReg)  # B有寄存器 语句1
+        # lastReg = Breg  # B有寄存器 语句2
+        # canProcessB = processingPairsWithRegFile(currentPairs, Breg)  # B有寄存器 语句3
+        for i, cando in enumerate(canProcessB):
+            if cando == 0:
+                currentPairs[i] = (-1,-1)
+        canProcessO = processingPairsWithOutput(currentPairs) # 考虑Output板块问题
+        # canProcessO = processingPairsIgnoreOBank(currentPairs) # 无视Output板块问题
+        canProcess = np.bitwise_and(canProcessB, canProcessO)
         # print(currentPairs, canProcess)  # 打印执行顺序
         processIdxList += canProcess
     return cycle
