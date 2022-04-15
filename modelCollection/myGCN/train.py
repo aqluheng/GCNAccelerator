@@ -13,6 +13,8 @@ from torch_geometric.data import dataset
 from utils import load_data, accuracy
 from models import GCN
 
+exportMat = False
+
 # Training settings
 parser = argparse.ArgumentParser()
 parser.add_argument('--no-cuda', action='store_true', default=False,
@@ -28,7 +30,7 @@ parser.add_argument('--weight_decay', type=float, default=5e-4,
                     help='Weight decay (L2 loss on parameters).')
 parser.add_argument('--dropout', type=float, default=0.5,
                     help='Dropout rate (1 - keep probability).')
-parser.add_argument("--dataset",type=str,default="cora",help="Set dataset")
+parser.add_argument("--dataset",type=str,default="Cora",help="Set dataset")
 
 
 args = parser.parse_args()
@@ -46,7 +48,7 @@ if args.cuda:
 
 # Load data
 adj, features, labels, idx_train, idx_val, idx_test = load_data(args.dataset)
-
+print(len(idx_train), len(idx_val), len(idx_test))
 # Model and optimizer
 model = GCN(nfeat=features.shape[1],
             nhid=hiddenFeature,
@@ -69,13 +71,26 @@ def train(epoch):
     t = time.time()
     model.train()
     optimizer.zero_grad()
+    
     output = model(features, adj)
-
-    loss_train = F.nll_loss(output[idx_train], labels[idx_train])
+    lastTime = time.time()
+    output = model(features, adj)
+    print("Inference Time:", time.time()- lastTime)
+    # output = model(features, adj, exportMat=exportMat,dataset=args.dataset)
+    loss_train = F.nll_loss(output[idx_train], labels[idx_train], reduction="sum")
     acc_train = accuracy(output[idx_train], labels[idx_train])
     loss_train.backward()
-    # for name, parms in model.named_parameters():	
-        # print('-->name:', name, '-->grad_requirs:',parms.requires_grad, ' -->grad_value:',parms.grad.shape)
+
+    if exportMat:
+        gradMap = {}
+        for name, parms in model.named_parameters():	
+            print('-->name:', name, '-->grad_requirs:',parms.requires_grad, ' -->grad_value:',parms.grad.shape)
+            gradMap[name+"_grad"] = parms.grad.cpu()
+            gradMap[name] = parms.cpu()
+        gradMap["Y"] = labels[idx_train]
+        torch.save(gradMap,"exportMat/%s_grad.pt"%args.dataset)
+
+    exit(0)
     optimizer.step()
 
     if not args.fastmode:

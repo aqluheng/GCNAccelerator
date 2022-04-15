@@ -31,9 +31,9 @@ def load_data(dataset="Cora"):
 
     adj = normalize(adj + sp.eye(adj.shape[0]))
 
-    idx_train = torch.nonzero(datasetHandler.train_mask).view(-1).numpy().tolist()
-    idx_val = torch.nonzero(datasetHandler.val_mask).view(-1).numpy().tolist()
-    idx_test = torch.nonzero(datasetHandler.test_mask).view(-1).numpy().tolist()
+    idx_train = range(140)
+    idx_val = range(200, 500)
+    idx_test = range(500, 1500)
 
     if dataset == "Nell":
         features = torch.FloatTensor(normalize(datasetHandler.x.to_dense()))
